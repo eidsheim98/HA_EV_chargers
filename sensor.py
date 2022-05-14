@@ -1,8 +1,3 @@
-"""
-A sensor created to read temperature from temperatur.nu
-For more details about this platform, please refer to the documentation at
-https://github.com/kayjei/temperatur_nu
-"""
 import logging
 import json
 from click import edit
@@ -32,7 +27,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 
 BASE_URL = "https://api.drivstoffappen.no/"
 INIT_URL = "api/stations?stationType=0&includeDeleted=true&minLastUpdated=2022-04-18T01%3A01%3A25GMT%2B02%3A00"
-UPDATE_URL = "api/stations?stationType=0&includeDeleted=true&minLastUpdated=2022-04-18T01%3A01%3A25GMT%2B02%3A00"
+URL = BASE_URL + INIT_URL
 PERS_JSON = ".fuel_integration.json"
 filepath = os.path.dirname(__file__) + "/" + PERS_JSON
 host = "api.drivstoffappen.no"
@@ -107,11 +102,6 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
         favourites.append(int(e))
         _LOGGER.debug("Entity from list: " + e)
 
-    if len(ent_list) > 0:
-        URL = BASE_URL + INIT_URL
-    else:
-        _LOGGER.info("No sensors added in configuration.yaml")
-
     _LOGGER.debug("Created URL: " + URL)
 
     ApiRequest().call(URL)
@@ -148,7 +138,6 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
 
 class SensorDevice(Entity):
     def __init__(self, id, fuel_price, timestamp, name, friendly_name, res):
-        # self._unique_id = f"FKSDFKSLKFLKS-FSLFSLKFLSK876543"
         self._device_id = "fuel_" + name
         self._state = fuel_price
         self._timestamp = timestamp
@@ -161,113 +150,25 @@ class SensorDevice(Entity):
 
     @Throttle(UPDATE_INTERVAL)
     def update(self):
-        """Temperature"""
+        ApiRequest().call(URL)
 
-        if self._device_id == self._poller:
-            # ApiRequest.call(self._url)
-            pass
+        json_obj = ReadJson().json_data()
+        # _LOGGER.debug(json_obj)
+        for station in json_obj:
+            if station["id"] == self._poller:
+                sensor_id = station["id"]
+                name = station["name"]
+                station_details = station["stationDetails"]
+                self.fuel_price, updated_diesel = get_gas_data(station_details, "D")
+                price_98, updated_98 = get_gas_data(station_details, "98")
+                price_95, updated_95 = get_gas_data(station_details, "95")
 
-        jsonr = ReadJson().json_data()
-        if isinstance(jsonr["rss"]["channel"]["item"], list):
-            try:
-                for ent in jsonr["rss"]["channel"]["item"]:
-                    if ent["id"].endswith("_"):
-                        if (
-                            ent["id"][:-1]
-                            .lower()
-                            .replace("\xe5", "a")
-                            .replace("\xe4", "a")
-                            .replace("\xf6", "o")
-                            .replace("-", "_")
-                            .replace(".", "")
-                            .replace("___", "_")
-                            == self._device_id
-                        ):
-                            if ent["temp"] == "N/A":
-                                self._state = None
-                            else:
-                                self._state = round(float(ent["temp"]), 1)
-                    elif (
-                        ent["id"]
-                        .lower()
-                        .replace("\xe5", "a")
-                        .replace("\xe4", "a")
-                        .replace("\xf6", "o")
-                        .replace("-", "_")
-                        .replace(".", "")
-                        .replace("___", "_")
-                        == self._device_id
-                    ):
-                        if ent["temp"] == "N/A":
-                            self._state = None
-                        else:
-                            self._state = round(float(ent["temp"]), 1)
+                self._res = {"98": price_98, "95": price_95}
 
-                        self._timestamp = ent["lastUpdate"]
-                        _LOGGER.debug(
-                            "Fuel is "
-                            + str(self._state)
-                            + " for "
-                            + str(self._friendly_name)
-                        )
+                friendly_name = name
+                name = edit_name(name)
 
-            except KeyError:
-                # _LOGGER.info(
-                #    "Key error on %s", json_obj["rss"]["channel"]["item"]["title"]
-                # )
-                pass
-
-        else:
-            try:
-                # ent = jsonr["rss"]["channel"]["item"]
-                if jsonr["rss"]["channel"]["item"]["id"].endswith("_"):
-                    if (
-                        jsonr["rss"]["channel"]["item"]["id"][:-1]
-                        .lower()
-                        .replace("\xe5", "a")
-                        .replace("\xe4", "a")
-                        .replace("\xf6", "o")
-                        .replace("-", "_")
-                        .replace(".", "")
-                        .replace("___", "_")
-                        == self._device_id
-                    ):
-                        if jsonr["rss"]["channel"]["item"]["temp"] == "N/A":
-                            self._state = None
-                        else:
-                            self._state = round(float(ent["temp"]), 1)
-                elif (
-                    jsonr["rss"]["channel"]["item"]["id"]
-                    .lower()
-                    .replace("\xe5", "a")
-                    .replace("\xe4", "a")
-                    .replace("\xf6", "o")
-                    .replace("-", "_")
-                    .replace(".", "")
-                    .replace("___", "_")
-                    == self._device_id
-                ):
-                    if jsonr["rss"]["channel"]["item"]["temp"] == "N/A":
-                        self._state = None
-                    else:
-                        self._state = round(
-                            float(jsonr["rss"]["channel"]["item"]["temp"]), 1
-                        )
-
-                    self._timestamp = jsonr["rss"]["channel"]["item"]["lastUpdate"]
-                    _LOGGER.debug(
-                        "Temp is "
-                        + str(self._state)
-                        + " for "
-                        + str(self._friendly_name)
-                    )
-
-            except KeyError:
-                # _LOGGER.info(
-                #    "Key error on single sensor %s",
-                #    json_obj["rss"]["channel"]["item"]["title"],
-                # )
-                pass
+                _LOGGER.info("Updating sensor: " + str(name))
 
     @property
     def unit_of_measurement(self) -> str:
