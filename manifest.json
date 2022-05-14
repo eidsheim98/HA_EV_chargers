@@ -1,0 +1,9 @@
+{
+  "domain": "fuel_integration",
+  "name": "Fuel Integration",
+  "documentation": "https://github.com/kayjei/homeassistant",
+  "dependencies": [],
+  "codeowners": ["kayjei"],
+  "requirements": ["requests","xmltodict", "datetime"],
+  "version": 0.14
+}
