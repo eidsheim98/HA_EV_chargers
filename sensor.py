@@ -13,7 +13,6 @@ import requests
 import xmltodict
 import traceback
 import os
-from typing import Any, Callable, Dict, Optional
 
 from homeassistant.helpers.entity import Entity
 import homeassistant.helpers.config_validation as cv
@@ -100,10 +99,12 @@ def edit_name(name):
 def setup_platform(hass, config, add_devices, discovery_info=None):
     """Set up the sensor platform"""
     path = ""
+    favourites = []
 
     ent_list = config.get(CONF_NAME)
     for e in ent_list:
         path = path + str(e) + ","
+        favourites.append(int(e))
         _LOGGER.debug("Entity from list: " + e)
 
     if len(ent_list) > 0:
@@ -115,8 +116,6 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
 
     ApiRequest().call(URL)
     devices = []
-
-    favourites = [2208]
 
     json_obj = ReadJson().json_data()
     # _LOGGER.debug(json_obj)
@@ -150,12 +149,13 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
 class SensorDevice(Entity):
     def __init__(self, id, fuel_price, timestamp, name, friendly_name, res):
         # self._unique_id = f"FKSDFKSLKFLKS-FSLFSLKFLSK876543"
-        self._device_id = name
+        self._device_id = "fuel_" + name
         self._state = fuel_price
         self._timestamp = timestamp
         self._friendly_name = friendly_name
         self._poller = id
-        self.res = res
+        self._res = res
+        self._unique_id = name
 
         # self.update()
 
@@ -297,12 +297,12 @@ class SensorDevice(Entity):
     @property
     def unique_id(self) -> str:
         """Return the unique ID of the sensor."""
-        return "mfdsnfklsdnfklsmlksd.f9u4932u324.dfksnfsdkk"
+        return self._unique_id
 
     @property
     def extra_state_attributes(self):
         """Return the state attributes."""
-        return self.res
+        return self._res
 
 
 class ApiRequest:
