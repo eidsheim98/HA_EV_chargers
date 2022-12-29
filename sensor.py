@@ -3,9 +3,7 @@ import json
 from click import edit
 import voluptuous as vol
 import datetime
-import secrets
 import requests
-import xmltodict
 import traceback
 import os
 
@@ -113,6 +111,13 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
         if station["id"] in favourites:
             sensor_id = station["id"]
             name = station["name"]
+
+            try:
+                brand = station["brand"]
+                name = brand + " " + name
+            except:
+                pass
+
             station_details = station["stationDetails"]
             price_diesel, updated_diesel = get_gas_data(station_details, "D")
             price_98, updated_98 = get_gas_data(station_details, "98")
