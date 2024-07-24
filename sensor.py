@@ -23,82 +23,40 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     }
 )
 
-BASE_URL = "https://api.drivstoffappen.no/"
-INIT_URL = "api/stations?stationType=0&includeDeleted=true&minLastUpdated=2022-04-18T01%3A01%3A25GMT%2B02%3A00"
-URL = BASE_URL + INIT_URL
-PERS_JSON = ".fuel_integration.json"
-filepath = os.path.dirname(__file__) + "/" + PERS_JSON
-host = "api.drivstoffappen.no"
-user_agent = "okhttp/4.7.2"
-accept_encoding = "gzip"
-connection = "Keep-Alive"
-content_type = "application/json"
-key = "2CD114509703F6E0A976C32FCB79C4F62966EEC6"
 
-headers = {
-    "Host": host,
-    "User-Agent": user_agent,
-    "Accept-Encoding": accept_encoding,
-    "Connection": connection,
-    "Content-Type": content_type,
-    "x-api-key": key,
-}
+def get_token(self):
+    url = "https://www.googleapis.com/identitytoolkit/v3/relyingparty/signupNewUser?key=AIzaSyBGIYse3GTN_s5Ssd_Qnd8Q3_6azHvQ8qA"
+    headers = {
+        "Accept-Encoding": "gzip",
+        "Accept-Language": "en-US",
+        "Connection": "Keep-Alive",
+        "Content-Type": "application/json",
+        "Host": "www.googleapis.com",
+        "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 12; sdk_gphone64_x86_64 Build/SE1A.220826.008)",
+        "X-Android-Cert": "073B265A6A68A563CE70F1A15F41146630F583D7",
+        "X-Android-Package": "no.vg.lab.zapp",
+        "X-Client-Version": "Android/Fallback/X22003001/FirebaseCore-Android",
+        "X-Firebase-AppCheck": "eyJlcnJvciI6IlVOS05PV05fRVJST1IifQ==",
+        "X-Firebase-Client": "H4sIAAAAAAAAAKtWykhNLCpJSk0sKVayio7VUSpLLSrOzM9TslIyUqoFAFyivEQfAAAA",
+        "X-Firebase-GMPID": "1:311678904626:android:5712a54a28c8e40342cf2b"
+    }
 
+    body = json.loads('{"clientType": "CLIENT_TYPE_ANDROID"}')
 
-def get_gas_data(gas_data, gastype):
-    found = False
-    for data in gas_data:
-        _type = data["type"]
-        if _type == gastype:
-            found = True
-            break
-    if found:
-        lastupdated = data["lastUpdated"] / 1000
-        now = datetime.datetime.now().timestamp()
-        minutes_since_update = (now - lastupdated) / 60
-        hours_since_update = minutes_since_update / 60
-
-        # _LOGGER.debug(data["price"])
-        # _LOGGER.debug(hours_since_update)
-
-        if hours_since_update > 1:
-            return data["price"], "Oppdatert for {:.0f} timer siden".format(
-                hours_since_update
-            )
-        else:
-            return data["price"], "Oppdatert for {:.0f} minutter siden".format(
-                minutes_since_update
-            )
-    else:
-        return None, None
-
-
-def edit_name(name):
-    name = (
-        name.lower()
-        .replace(" ", "_")
-        .replace("å", "a")
-        .replace("æ", "a")
-        .replace("ø", "o")
-        .replace("-", "_")
-        .replace(".", "")
-        .replace("å", "a")
-        .replace("æ", "a")
-        .replace("ø", "o")
-    )
-    return name
+    response = requests.post(url, json=body, headers=headers)
+    j = response.json()
+    token = j["idToken"]
+    return token
 
 
 def setup_platform(hass, config, add_devices, discovery_info=None):
     """Set up the sensor platform"""
-    path = ""
-    favourites = []
+    charger = ""
 
     ent_list = config.get(CONF_NAME)
     for e in ent_list:
-        path = path + str(e) + ","
-        favourites.append(int(e))
-        _LOGGER.debug("Entity from list: " + e)
+        charger = e
+        _LOGGER.debug("Charger type: " + e)
 
     _LOGGER.debug("Created URL: " + URL)
 
@@ -106,50 +64,38 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
     devices = []
 
     json_obj = ReadJson().json_data()
+
     # _LOGGER.debug(json_obj)
     for station in json_obj:
-        if station["id"] in favourites:
-            sensor_id = station["id"]
-            name = station["name"]
-
-            try:
-                brand = station["brand"]
-                name = brand + " " + name
-            except:
-                pass
-
-            station_details = station["stationDetails"]
-            price_diesel, updated_diesel = get_gas_data(station_details, "D")
-            price_98, updated_98 = get_gas_data(station_details, "98")
-            price_95, updated_95 = get_gas_data(station_details, "95")
-
-            res = {"98": price_98, "95": price_95}
-
-            friendly_name = name
-            name = edit_name(name)
+        if station["id"] in favourites:            
 
             _LOGGER.debug("New sensor: " + str(name))
 
             devices.append(
                 SensorDevice(
-                    sensor_id, price_diesel, updated_diesel, name, friendly_name, res
+                    station.name, station.lat, station.long, station.operator, station.facilities, station.power, station.time, None
                 )
             )
 
-            _LOGGER.info("Adding sensor: " + str(name))
+            _LOGGER.info("Adding sensor: " + str(station.name))
 
     add_devices(devices)
 
 
-class SensorDevice(Entity):
-    def __init__(self, id, fuel_price, timestamp, name, friendly_name, res):
-        self._device_id = "fuel_" + name
-        self._state = fuel_price
-        self._timestamp = timestamp
-        self._friendly_name = friendly_name
-        self._poller = id
-        self._res = res
+class SensorDevice(Entity): #Normal station
+    def __init__(self, name, lat, long, operator, facilities, power, time, res):
+
+        self._device_id = "charger_" + name
+        self._state = name
+        self._latitude = lat
+        self._longitude = long
+        self._operator = operator
+        self._facilities = facilities
+        self._power = power
+        self._time = time
+        self._price = None
         self._unique_id = name
+        self._poller = id
 
         # self.update()
 
@@ -157,23 +103,12 @@ class SensorDevice(Entity):
     def update(self):
         ApiRequest().call(URL)
 
-        json_obj = ReadJson().json_data()
+        chargers = ReadJson().json_data()
         # _LOGGER.debug(json_obj)
-        for station in json_obj:
-            if station["id"] == self._poller:
-                sensor_id = station["id"]
-                name = station["name"]
-                station_details = station["stationDetails"]
-                self.fuel_price, updated_diesel = get_gas_data(station_details, "D")
-                price_98, updated_98 = get_gas_data(station_details, "98")
-                price_95, updated_95 = get_gas_data(station_details, "95")
+        for station in chargers:
+            self._power = station.power
 
-                self._res = {"98": price_98, "95": price_95}
-
-                friendly_name = name
-                name = edit_name(name)
-
-                _LOGGER.info("Updating sensor: " + str(name))
+            _LOGGER.info("Updating sensor: " + str(self.name))
 
     @property
     def unit_of_measurement(self) -> str:
@@ -211,51 +146,85 @@ class SensorDevice(Entity):
         return self._res
 
 
-class ApiRequest:
-    def call(self, url):
-        try:
-            """Temperature"""
-
-            traceback.print_exc()
-
-            response = requests.get(url, headers=headers)
-            _LOGGER.debug(response)
-
-            if response.status_code == 200:
-                stations_json = json.loads(response.text)
-                _LOGGER.debug(
-                    "Sending API request to: "
-                    + url
-                    + " Printing result to "
-                    + PERS_JSON
-                )
-
-                _LOGGER.debug(filepath)
-                with open(filepath, "w+") as json_file:
-                    json_file.write(response.text)
-
-                # _LOGGER.debug("Here")
-                return True
-
-            else:
-                _LOGGER.debug("API CALL FAILED")
-                return False
-        except Exception as e:
-            _LOGGER.debug(e.with_traceback())
-
-
 class ReadJson:
     def __init__(self):
         self.update()
 
+    def get_full_info(self, s_data):
+        print("Getting full station info")
+        data = []
+
+        fastest_time = 1000000000
+        fastest_charger = None
+        lowest_price = 1000000000
+        cheapest_charger = None
+
+        for s in s_data:
+            s_id = s["id"]
+            info_response = self._get_station_info(s_id)
+
+            if info_response.status_code != 200:
+                print("Error getting full station info")
+                continue
+
+            info = info_response.content.decode()
+            info = json.loads(info)
+
+            for i in range(len(info["chargers"])):
+                charger = info["chargers"][i]
+                c = Charger(
+                    info["name"],
+                    info["coordinates"][0],
+                    info["coordinates"][1],
+                    info["operator"],
+                    info["facilities"],
+                    charger["voltage"],
+                    charger["estimated"]["time"],
+                )
+
+                if "price" in charger["estimated"].keys():
+                    c.price = charger["estimated"]["price"]
+                    if charger["estimated"]["price"] <= lowest_price:
+                        fastest_time = charger["estimated"]["time"]
+                        cheapest_charger = i
+
+                if charger["estimated"]["time"] <= fastest_time:
+                    fastest_time = charger["estimated"]["time"]
+                    fastest_charger = i
+
+                data.append(c)
+
+        return data
+        
+
     @Throttle(UPDATE_INTERVAL)
     def update(self):
-        """Temperature"""
-        _LOGGER.debug("Reading " + PERS_JSON + " for device")
-        with open(filepath, "r") as json_file:
-            json_datas = json.load(json_file)
-        self._json_response = json_datas
+        _LOGGER.debug("Getting stations")
+
+        token = get_token()
+
+        url = f"https://stations.elton.app/pins?plugs=eyJJRUNfNjIxOTZfVDJfQ09NQk8iOjE4MCwiSUVDXzYyMTk2X1QyIjoxMSwiQ0hBREVNTyI6NjB9&capacity=80&best=false&canChargeWithElton=false&latitudeCenter={lat}&longitudeCenter={long}&longitudeDelta=3&latitudeDelta=3&maxLimit=10"
+
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Accept-Encoding": "gzip",
+            "Accept-Language": "en-US",
+            "Connection": "Keep-Alive",
+            "Credentials": "include",
+            "Host": "stations.elton.app"
+        }
+
+        response = requests.get(url, headers=headers)
+
+        if response.status_code != 200:
+            _LOGGER.error("Unable to get stations")
+            quit()
+
+        data = response.content.decode()
+        j = json.loads(data)
+
+
+        self._full_info = self.get_full_info(j)
 
     def json_data(self):
-        """Keep json data"""
-        return self._json_response
+        return self._full_info
