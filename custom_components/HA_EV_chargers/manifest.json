@@ -1,7 +1,7 @@
 {
   "domain": "norwegian_ev_chargers",
   "name": "Norwegian EV chargers",
-  "documentation": "https://github.com/eidsheim98/HA_fuel_integration",
+  "documentation": "https://github.com/eidsheim98/HA_EV_chargers",
   "dependencies": [],
   "codeowners": ["eidsheim98"],
   "requirements": ["requests", "datetime"],
